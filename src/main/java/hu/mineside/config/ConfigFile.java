@@ -131,7 +131,7 @@ public final class ConfigFile {
     }
 
     /**
-     * Returns the int value at {@code key} clamped to [{@code min}, {@code max}].
+     * Returns the int value at {@code key} if it lies within [{@code min}, {@code max}].
      * If the value is outside the range, logs a warning and returns {@code def}.
      */
     public int getInt(String key, int def, int min, int max) {
@@ -204,12 +204,14 @@ public final class ConfigFile {
     // ── internal ──────────────────────────────────────────────────────────────
 
     private static void ensureExists(Path file, InputStream defaultResource) throws IOException {
-        if (Files.exists(file)) return;
-        if (defaultResource == null)
-            throw new IOException("Config file not found and no default provided: " + file);
-        Path parent = file.getParent();
-        if (parent != null) Files.createDirectories(parent);
-        Files.copy(defaultResource, file);
+        try (InputStream in = defaultResource) {
+            if (Files.exists(file)) return;
+            if (in == null)
+                throw new IOException("Config file not found and no default provided: " + file);
+            Path parent = file.getParent();
+            if (parent != null) Files.createDirectories(parent);
+            Files.copy(in, file);
+        }
     }
 
     @SuppressWarnings("unchecked")
