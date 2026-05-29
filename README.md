@@ -20,7 +20,7 @@ Typed YAML config loader for Paper / Velocity Minecraft plugins.
 <dependency>
     <groupId>com.github.PatriksGit</groupId>
     <artifactId>ConfigAPI</artifactId>
-    <version>v1.0.0</version>
+    <version>v1.0.1</version>
 </dependency>
 ```
 

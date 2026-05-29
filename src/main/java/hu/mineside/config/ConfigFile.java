@@ -235,6 +235,12 @@ public final class ConfigFile {
     public boolean getBoolean(String key, boolean def) {
         Object val = getRaw(key);
         if (val instanceof Boolean b) return b;
+        if (val instanceof String s) {
+            String lower = s.trim().toLowerCase(Locale.ROOT);
+            if (lower.equals("true"))  return true;
+            if (lower.equals("false")) return false;
+            // fall through to warnType + return def
+        }
         if (val != null) warnType(key, "boolean", val);
         return def;
     }
@@ -242,7 +248,9 @@ public final class ConfigFile {
     /**
      * Returns a string list at {@code key}.
      * Handles both YAML list values and single-string values (wraps to 1-element list).
-     * Returns {@code def} if the key is missing.
+     * Null elements within a list are converted to empty strings.
+     * Returns {@code def} if the key is missing, or if the value is neither a list
+     * nor a string (logs a WARN).
      */
     public List<String> getStringList(String key, List<String> def) {
         Object val = getRaw(key);
