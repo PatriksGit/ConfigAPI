@@ -205,10 +205,24 @@ public final class ConfigFile {
     /** Returns the double value at {@code key}, or {@code def} if missing or wrong type. */
     public double getDouble(String key, double def) {
         Object val = getRaw(key);
-        if (val instanceof Number n) return n.doubleValue();
+        if (val instanceof Number n) {
+            double d = n.doubleValue();
+            if (!Double.isFinite(d)) {
+                logger.warn("Config '{}' value {} is not a finite double — using {}.",
+                        fullKey(key), val, def);
+                return def;
+            }
+            return d;
+        }
         if (val instanceof String s) {
             try {
-                return Double.parseDouble(s.trim());
+                double d = Double.parseDouble(s.trim());
+                if (!Double.isFinite(d)) {
+                    logger.warn("Config '{}' value {} is not a finite double — using {}.",
+                            fullKey(key), val, def);
+                    return def;
+                }
+                return d;
             } catch (NumberFormatException ignored) {
                 // fall through to warn
             }
@@ -280,7 +294,9 @@ public final class ConfigFile {
         try (InputStream in = Files.newInputStream(file)) {
             Object parsed;
             try {
-                parsed = new Yaml(new SafeConstructor(new LoaderOptions())).load(in);
+                LoaderOptions opts = new LoaderOptions();
+                opts.setAllowDuplicateKeys(false);
+                parsed = new Yaml(new SafeConstructor(opts)).load(in);
             } catch (YAMLException e) {
                 throw new ConfigException("Malformed YAML in " + file + " (see cause for details)", e);
             }
