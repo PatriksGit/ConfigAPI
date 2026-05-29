@@ -8,10 +8,12 @@ import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -177,12 +179,15 @@ public final class ConfigFile {
             if (n instanceof Integer || n instanceof Long || n instanceof Short || n instanceof Byte) {
                 return n.longValue();
             }
-            // floating-point type: accept only if no fractional part
+            // floating-point type: accept only if no fractional part and within long range
             double d = n.doubleValue();
             if (d == Math.rint(d)) {
-                return n.longValue();
+                long l = (long) d;
+                if ((double) l == d) {
+                    return l;
+                }
             }
-            logger.warn("Config '{}' value {} is not a valid long (fractional) — using {}.",
+            logger.warn("Config '{}' value {} is not a valid long (fractional or out of range) — using {}.",
                     fullKey(key), val, def);
             return def;
         }
@@ -262,7 +267,11 @@ public final class ConfigFile {
                 throw new IOException("Config file not found and no default provided: " + file);
             Path parent = file.getParent();
             if (parent != null) Files.createDirectories(parent);
-            Files.copy(in, file);
+            try {
+                Files.copy(in, file);
+            } catch (FileAlreadyExistsException ignored) {
+                // another thread/process created the file concurrently — that's fine
+            }
         }
     }
 
@@ -273,7 +282,7 @@ public final class ConfigFile {
             try {
                 parsed = new Yaml(new SafeConstructor(new LoaderOptions())).load(in);
             } catch (YAMLException e) {
-                throw new ConfigException("Malformed YAML in " + file + ": " + e.getMessage(), e);
+                throw new ConfigException("Malformed YAML in " + file + " (see cause for details)", e);
             }
             if (parsed == null) {
                 logger.warn("{} is empty — using empty config.", file.getFileName());
@@ -282,8 +291,29 @@ public final class ConfigFile {
             if (!(parsed instanceof Map)) {
                 throw new ConfigException("Config file root must be a YAML mapping: " + file);
             }
-            return Collections.unmodifiableMap((Map<String, Object>) parsed);
+            return (Map<String, Object>) deepImmutable(parsed);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object deepImmutable(Object o) {
+        if (o instanceof Map) {
+            Map<Object, Object> src = (Map<Object, Object>) o;
+            Map<Object, Object> copy = new LinkedHashMap<>(src.size());
+            for (Map.Entry<Object, Object> e : src.entrySet()) {
+                copy.put(e.getKey(), deepImmutable(e.getValue()));
+            }
+            return Collections.unmodifiableMap(copy);
+        }
+        if (o instanceof List) {
+            List<Object> src = (List<Object>) o;
+            List<Object> copy = new ArrayList<>(src.size());
+            for (Object item : src) {
+                copy.add(deepImmutable(item));
+            }
+            return Collections.unmodifiableList(copy);
+        }
+        return o;
     }
 
     private String fullKey(String key) {
