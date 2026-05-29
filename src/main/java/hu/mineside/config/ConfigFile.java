@@ -1,7 +1,10 @@
 package hu.mineside.config;
 
 import org.slf4j.Logger;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -119,13 +122,36 @@ public final class ConfigFile {
     /** Returns the string value at {@code key}, or {@code def} if missing or wrong type. */
     public String getString(String key, String def) {
         Object val = getRaw(key);
-        return val != null ? String.valueOf(val) : def;
+        if (val == null) return def;
+        if (val instanceof List || val instanceof Map) {
+            warnType(key, "string", val);
+            return def;
+        }
+        return String.valueOf(val);
     }
 
     /** Returns the int value at {@code key}, or {@code def} if missing or wrong type. */
     public int getInt(String key, int def) {
         Object val = getRaw(key);
-        if (val instanceof Number n) return n.intValue();
+        if (val instanceof Number n) {
+            double d = n.doubleValue();
+            long l = n.longValue();
+            boolean integral = (n instanceof Integer || n instanceof Long || n instanceof Short || n instanceof Byte)
+                               || d == Math.rint(d);
+            if (integral && l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE && (double) l == d) {
+                return (int) l;
+            }
+            logger.warn("Config '{}' value {} is not a valid int (fractional or out of range) — using {}.",
+                    fullKey(key), val, def);
+            return def;
+        }
+        if (val instanceof String s) {
+            try {
+                return Integer.parseInt(s.trim());
+            } catch (NumberFormatException ignored) {
+                // fall through to warn
+            }
+        }
         if (val != null) warnType(key, "int", val);
         return def;
     }
@@ -147,7 +173,26 @@ public final class ConfigFile {
     /** Returns the long value at {@code key}, or {@code def} if missing or wrong type. */
     public long getLong(String key, long def) {
         Object val = getRaw(key);
-        if (val instanceof Number n) return n.longValue();
+        if (val instanceof Number n) {
+            if (n instanceof Integer || n instanceof Long || n instanceof Short || n instanceof Byte) {
+                return n.longValue();
+            }
+            // floating-point type: accept only if no fractional part
+            double d = n.doubleValue();
+            if (d == Math.rint(d)) {
+                return n.longValue();
+            }
+            logger.warn("Config '{}' value {} is not a valid long (fractional) — using {}.",
+                    fullKey(key), val, def);
+            return def;
+        }
+        if (val instanceof String s) {
+            try {
+                return Long.parseLong(s.trim());
+            } catch (NumberFormatException ignored) {
+                // fall through to warn
+            }
+        }
         if (val != null) warnType(key, "long", val);
         return def;
     }
@@ -156,6 +201,13 @@ public final class ConfigFile {
     public double getDouble(String key, double def) {
         Object val = getRaw(key);
         if (val instanceof Number n) return n.doubleValue();
+        if (val instanceof String s) {
+            try {
+                return Double.parseDouble(s.trim());
+            } catch (NumberFormatException ignored) {
+                // fall through to warn
+            }
+        }
         if (val != null) warnType(key, "double", val);
         return def;
     }
@@ -217,7 +269,12 @@ public final class ConfigFile {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> readYaml(Path file, Logger logger) throws IOException {
         try (InputStream in = Files.newInputStream(file)) {
-            Object parsed = new Yaml().load(in);
+            Object parsed;
+            try {
+                parsed = new Yaml(new SafeConstructor(new LoaderOptions())).load(in);
+            } catch (YAMLException e) {
+                throw new ConfigException("Malformed YAML in " + file + ": " + e.getMessage(), e);
+            }
             if (parsed == null) {
                 logger.warn("{} is empty — using empty config.", file.getFileName());
                 return Map.of();

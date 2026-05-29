@@ -253,4 +253,85 @@ class ConfigFileTest {
         assertEquals(2, v2.getInt("version", 0));
         assertEquals(1, v1.getInt("version", 0)); // old snapshot unchanged
     }
+
+    // ── FIX 1: getInt/getLong truncation/overflow guards ────────────────────
+
+    @Test
+    void getIntFractionalReturnsDefault() throws IOException {
+        // 3.9 is a Double in YAML — must NOT silently truncate to 3
+        assertEquals(99, load(yaml("port: 3.9")).getInt("port", 99));
+    }
+
+    @Test
+    void getIntLongOverflowReturnsDefault() throws IOException {
+        // 9999999999 exceeds Integer.MAX_VALUE — must NOT wrap to negative
+        assertEquals(99, load(yaml("port: 9999999999")).getInt("port", 99));
+    }
+
+    @Test
+    void getIntExactIntegerWorks() throws IOException {
+        assertEquals(3306, load(yaml("port: 3306")).getInt("port", 0));
+    }
+
+    @Test
+    void getLongBigValueWorks() throws IOException {
+        assertEquals(9999999999L, load(yaml("big: 9999999999")).getLong("big", 0L));
+    }
+
+    @Test
+    void getLongFractionalReturnsDefault() throws IOException {
+        // 3.9 is a Double in YAML — must NOT truncate to 3L
+        assertEquals(99L, load(yaml("val: 3.9")).getLong("val", 99L));
+    }
+
+    // ── FIX 2: quoted-number fallback ────────────────────────────────────────
+
+    @Test
+    void getIntQuotedNumberParsed() throws IOException {
+        assertEquals(3306, load(yaml("port: \"3306\"")).getInt("port", 0));
+    }
+
+    @Test
+    void getIntQuotedNonNumberReturnsDefault() throws IOException {
+        assertEquals(99, load(yaml("port: \"abc\"")).getInt("port", 99));
+    }
+
+    @Test
+    void getDoubleQuotedNumberParsed() throws IOException {
+        assertEquals(1.5, load(yaml("ratio: \"1.5\"")).getDouble("ratio", 0.0), 0.001);
+    }
+
+    @Test
+    void getLongQuotedNumberParsed() throws IOException {
+        assertEquals(9999999999L, load(yaml("big: \"9999999999\"")).getLong("big", 0L));
+    }
+
+    // ── FIX 3: getString does not stringify collections ───────────────────────
+
+    @Test
+    void getStringOnListReturnsDefault() throws IOException {
+        String result = load(yaml("items:\n  - a\n  - b")).getString("items", "def");
+        assertEquals("def", result);
+    }
+
+    @Test
+    void getStringOnMapReturnsDefault() throws IOException {
+        String result = load(yaml("db:\n  host: localhost")).getString("db", "def");
+        assertEquals("def", result);
+    }
+
+    @Test
+    void getStringScalarStillStringifies() throws IOException {
+        // Integer scalar must still stringify (existing behaviour)
+        assertEquals("42", load(yaml("port: 42")).getString("port", "def"));
+    }
+
+    // ── FIX 4: malformed YAML throws ConfigException ─────────────────────────
+
+    @Test
+    void malformedYamlThrowsConfigException() throws IOException {
+        Path f = tempDir.resolve("bad.yml");
+        Files.writeString(f, "a:\n  b: [unclosed");
+        assertThrows(ConfigException.class, () -> ConfigFile.load(f, LOG));
+    }
 }
