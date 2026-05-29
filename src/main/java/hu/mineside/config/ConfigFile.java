@@ -315,9 +315,9 @@ public final class ConfigFile {
     private static Object deepImmutable(Object o) {
         if (o instanceof Map) {
             Map<Object, Object> src = (Map<Object, Object>) o;
-            Map<Object, Object> copy = new LinkedHashMap<>(src.size());
+            Map<String, Object> copy = new LinkedHashMap<>(src.size());
             for (Map.Entry<Object, Object> e : src.entrySet()) {
-                copy.put(e.getKey(), deepImmutable(e.getValue()));
+                copy.put(String.valueOf(e.getKey()), deepImmutable(e.getValue()));
             }
             return Collections.unmodifiableMap(copy);
         }

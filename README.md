@@ -24,7 +24,7 @@ Typed YAML config loader for Paper / Velocity Minecraft plugins.
 </dependency>
 ```
 
-SnakeYAML és SLF4J `provided` — Paper és Velocity runtime-ban szállítja őket.
+SnakeYAML és SLF4J `provided`. Az SLF4J-t Paper és Velocity is biztosítja runtime-ban. A SnakeYAML-t viszont csak a Paper szállítja — a Velocity Configurate-et használ és **nem** teszi elérhetővé a SnakeYAML-t a plugin classloaderének. Ezért Velocity pluginoknál a SnakeYAML-t (relokációval) be kell shade-elni a saját JAR-odba, különben runtime-ban `NoClassDefFoundError: org/yaml/snakeyaml/Yaml`.
 
 ---
 
