@@ -20,7 +20,7 @@ Typed YAML config loader for Paper / Velocity Minecraft plugins.
 <dependency>
     <groupId>com.github.PatriksGit</groupId>
     <artifactId>ConfigAPI</artifactId>
-    <version>v1.0.1</version>
+    <version>v1.1.0</version>
 </dependency>
 ```
 
@@ -170,6 +170,20 @@ List<String>    getStringList(String key, List<String> def)
 
 **Null-biztonság:** minden getter null-safe, hiányzó vagy rossz típusú kulcsnál a default értéket adja vissza.
 **Reload:** hozz létre új `ConfigFile` példányt és cseréld le a `volatile` fieldet.
+
+---
+
+## Changelog
+
+### 1.1.0
+
+**BREAKING:** a duplikált YAML kulcsokat a betöltő mostantól elutasítja — `ConfigException` dobódik betöltéskor (`allowDuplicateKeys(false)`), a korábbi csendes "last-wins" viselkedés helyett. Az üzemeltetőknek de-duplikálniuk kell a config fájljaikat, különben a plugin nem indul el.
+
+Additív fejlesztések:
+- `getDouble` NaN / Infinity elleni védelem — nem-véges érték esetén a default-ot adja vissza + WARN log.
+- `getBoolean` mostantól kezeli az idézőjeles `"true"` / `"false"` string értékeket is.
+- `require()` mostantól `ConfigException`-t dob, ha a kulcs YAML szekció vagy lista (nem skalár), ahelyett hogy a stringgé alakított map/lista értéket adná vissza.
+- Nem-String kulcsok is elérhetők.
 
 ---
 

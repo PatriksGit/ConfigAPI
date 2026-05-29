@@ -116,6 +116,8 @@ public final class ConfigFile {
     public String require(String key) throws ConfigException {
         Object val = getRaw(key);
         if (val == null) throw new ConfigException("Required config key missing: '" + fullKey(key) + "'");
+        if (val instanceof java.util.List || val instanceof java.util.Map)
+            throw new ConfigException("Required config key '" + fullKey(key) + "' is a YAML section/list, not a scalar");
         return String.valueOf(val);
     }
 
