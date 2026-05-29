@@ -334,4 +334,93 @@ class ConfigFileTest {
         Files.writeString(f, "a:\n  b: [unclosed");
         assertThrows(ConfigException.class, () -> ConfigFile.load(f, LOG));
     }
+
+    // ── getDouble NaN/Infinity guard ─────────────────────────────────────────
+
+    @Test
+    void getDoubleNanReturnsDefault() throws IOException {
+        // .nan parses to Double.NaN — not finite, must return default
+        assertEquals(1.0, load(yaml("ratio: .nan")).getDouble("ratio", 1.0), 0.001);
+    }
+
+    @Test
+    void getDoubleInfinityReturnsDefault() throws IOException {
+        // .inf parses to Double.POSITIVE_INFINITY — not finite, must return default
+        assertEquals(1.0, load(yaml("ratio: .inf")).getDouble("ratio", 1.0), 0.001);
+    }
+
+    @Test
+    void getDoubleQuotedNanReturnsDefault() throws IOException {
+        // String path: "NaN" parses via Double.parseDouble to NaN — must return default
+        assertEquals(1.0, load(yaml("ratio: \"NaN\"")).getDouble("ratio", 1.0), 0.001);
+    }
+
+    @Test
+    void getDoubleQuotedInfinityReturnsDefault() throws IOException {
+        // String path: "Infinity" parses to POSITIVE_INFINITY — must return default
+        assertEquals(1.0, load(yaml("ratio: \"Infinity\"")).getDouble("ratio", 1.0), 0.001);
+    }
+
+    // ── allowDuplicateKeys(false) ────────────────────────────────────────────
+
+    @Test
+    void duplicateKeyThrowsConfigException() throws IOException {
+        assertThrows(ConfigException.class, () -> load(yaml("a: 1\na: 2")));
+    }
+
+    // ── deep immutability ────────────────────────────────────────────────────
+
+    @Test
+    void getStringListResultIsUnmodifiable() throws IOException {
+        List<String> result = load(yaml("items:\n  - a\n  - b")).getStringList("items", List.of());
+        assertThrows(UnsupportedOperationException.class, () -> result.add("c"));
+    }
+
+    // ── non-String YAML keys reachable ───────────────────────────────────────
+
+    @Test
+    void integerKeyReachableAsString() throws IOException {
+        // 123 is an Integer key in YAML — String.valueOf(key) makes it reachable as "123"
+        assertEquals("foo", load(yaml("123: foo")).getString("123", "def"));
+    }
+
+    // ── getStringList wrong scalar type ──────────────────────────────────────
+
+    @Test
+    void getStringListOnIntReturnsDefault() throws IOException {
+        // Integer scalar is neither a List nor a String — must return default
+        assertEquals(List.of("x"), load(yaml("n: 42")).getStringList("n", List.of("x")));
+    }
+
+    @Test
+    void getStringListOnBooleanReturnsDefault() throws IOException {
+        // Boolean scalar is neither a List nor a String — must return default
+        assertEquals(List.of("x"), load(yaml("n: true")).getStringList("n", List.of("x")));
+    }
+
+    // ── contains with explicit null ──────────────────────────────────────────
+
+    @Test
+    void containsExplicitNullReturnsFalse() throws IOException {
+        // key: ~ is an explicit YAML null — contains must return false
+        assertFalse(load(yaml("key: ~")).contains("key"));
+    }
+
+    // ── getBoolean quoted-string ─────────────────────────────────────────────
+
+    @Test
+    void getBooleanQuotedTrue() throws IOException {
+        assertTrue(load(yaml("enabled: \"true\"")).getBoolean("enabled", false));
+    }
+
+    @Test
+    void getBooleanQuotedFalse() throws IOException {
+        assertFalse(load(yaml("enabled: \"false\"")).getBoolean("enabled", true));
+    }
+
+    @Test
+    void getBooleanArbitraryStringReturnsDefault() throws IOException {
+        assertTrue(load(yaml("enabled: \"maybe\"")).getBoolean("enabled", true));
+        assertFalse(load(yaml("enabled: \"maybe\"")).getBoolean("enabled", false));
+    }
 }
