@@ -99,6 +99,26 @@ public final class ConfigFile {
         return new ConfigFile(root, full, logger);
     }
 
+    /**
+     * Returns the immediate child key names at this section's level, in document
+     * order. Empty if this path is missing or is not a YAML mapping. Useful for
+     * iterating dynamic/user-defined keys (e.g. reward levels under a section).
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.Set<String> keys() {
+        Object node = root;
+        if (!pathPrefix.isEmpty()) {
+            for (String part : pathPrefix.split("\\.", -1)) {
+                if (!(node instanceof Map)) return java.util.Set.of();
+                node = ((Map<String, Object>) node).get(part);
+            }
+        }
+        if (node instanceof Map) {
+            return new java.util.LinkedHashSet<>(((Map<String, Object>) node).keySet());
+        }
+        return java.util.Set.of();
+    }
+
     // ── key presence ─────────────────────────────────────────────────────────
 
     /** Returns {@code true} if the key exists and is non-null in the YAML. */

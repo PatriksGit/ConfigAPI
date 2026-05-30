@@ -38,6 +38,20 @@ class ConfigFileTest {
     }
 
     @Test
+    void keysReturnsChildKeysInOrder() throws IOException {
+        ConfigFile c = load(yaml("milestones:\n  10:\n    a: 1\n  100:\n    a: 2\n  50:\n    a: 3\n"));
+        assertEquals(List.of("10", "100", "50"),
+            new java.util.ArrayList<>(c.section("milestones").keys()));
+    }
+
+    @Test
+    void keysEmptyForMissingOrScalar() throws IOException {
+        ConfigFile c = load(yaml("host: localhost\n"));
+        assertTrue(c.section("nope").keys().isEmpty());
+        assertTrue(c.section("host").keys().isEmpty());
+    }
+
+    @Test
     void getStringMissingReturnsDefault() throws IOException {
         assertEquals("def", load(yaml("a: b")).getString("missing", "def"));
     }
